@@ -1,5 +1,6 @@
 import os
 from datetime import datetime, date, timedelta
+from collections import defaultdict, Counter
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -1624,6 +1625,40 @@ def get_occupancy_stats(current_user):
     revenue = sum(booking.total_amount for booking in confirmed_bookings)
     avg_stay_length = total_booked_nights / len(confirmed_bookings) if confirmed_bookings else 0
 
+    # Calculate daily occupancy
+    daily_occupancy = []
+    
+    current_date = start_date
+    while current_date <= end_date:
+        # Count occupied rooms for this date
+        occupied_count = 0
+        for booking in confirmed_bookings:
+            if booking.check_in <= current_date < booking.check_out:
+                occupied_count += 1
+        
+        daily_rate = (occupied_count / total_rooms * 100) if total_rooms > 0 else 0
+        daily_occupancy.append({
+            'date': current_date.isoformat(),
+            'occupancy_rate': round(daily_rate, 2),
+            'occupied_rooms': occupied_count
+        })
+        current_date += timedelta(days=1)
+
+    # Unique guests
+    unique_guests = len(set(b.guest_id for b in confirmed_bookings))
+
+    # Calculate Room Type Performance (based on bookings)
+    room_type_stats = defaultdict(int)
+    for booking in confirmed_bookings:
+        if booking.room:
+            room_type_stats[booking.room.room_type] += 1
+
+    # Format room type performance
+    room_type_performance = [
+        {'room_type': k, 'booking_count': v} 
+        for k, v in room_type_stats.items()
+    ]
+
     stats = {
         'period': {
             'start_date': start_date.isoformat(),
@@ -1633,8 +1668,12 @@ def get_occupancy_stats(current_user):
         'total_bookings': len(confirmed_bookings),
         'total_booked_nights': total_booked_nights,
         'occupancy_rate': round(occupancy_rate, 2),
+        'average_occupancy_rate': round(occupancy_rate, 2),  # Alias for frontend
         'total_revenue': revenue,
-        'average_stay_length': round(avg_stay_length, 2)
+        'average_stay_length': round(avg_stay_length, 2),
+        'unique_guests': unique_guests,
+        'daily_occupancy': daily_occupancy,
+        'room_type_performance': room_type_performance
     }
 
     return jsonify(stats)
