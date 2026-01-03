@@ -1686,5 +1686,87 @@ def get_yearly_summary(current_user):
     })
 
 
+@app.cli.command("import-data")
+def import_data():
+    """Import sample data from JSON files."""
+    import json
+    from pathlib import Path
+
+    data_dir = Path("example_data")
+    if not data_dir.exists():
+        print("Error: example_data directory not found")
+        return
+
+    # Import Rooms
+    try:
+        with open(data_dir / "rooms.json") as f:
+            rooms_data = json.load(f)
+            for item in rooms_data:
+                if not Room.query.filter_by(room_number=item['room_number']).first():
+                    room = Room(**item)
+                    db.session.add(room)
+            db.session.commit()
+            print("Rooms imported.")
+    except Exception as e:
+        print(f"Error importing rooms: {e}")
+
+    # Import Guests
+    try:
+        with open(data_dir / "guests.json") as f:
+            guests_data = json.load(f)
+            for item in guests_data:
+                if not Guest.query.filter_by(email=item['email']).first():
+                    guest = Guest(**item)
+                    db.session.add(guest)
+            db.session.commit()
+            print("Guests imported.")
+    except Exception as e:
+        print(f"Error importing guests: {e}")
+
+    # Import Services
+    try:
+        with open(data_dir / "services.json") as f:
+            services_data = json.load(f)
+            for item in services_data:
+                if not Service.query.filter_by(name=item['name']).first():
+                    service = Service(**item)
+                    db.session.add(service)
+            db.session.commit()
+            print("Services imported.")
+    except Exception as e:
+        print(f"Error importing services: {e}")
+    
+    # Import Seasonal Rates
+    try:
+        with open(data_dir / "seasonal_rates.json") as f:
+            rates_data = json.load(f)
+            for item in rates_data:
+                if not SeasonalRate.query.filter_by(name=item['name']).first():
+                    # Parse dates
+                    item['start_date'] = datetime.strptime(item['start_date'], '%Y-%m-%d').date()
+                    item['end_date'] = datetime.strptime(item['end_date'], '%Y-%m-%d').date()
+                    rate = SeasonalRate(**item)
+                    db.session.add(rate)
+            db.session.commit()
+            print("Seasonal rates imported.")
+    except Exception as e:
+        print(f"Error importing seasonal rates: {e}")
+
+    # Import Contacts
+    try:
+        with open(data_dir / "contacts.json") as f:
+            contacts_data = json.load(f)
+            for item in contacts_data:
+                if not Contact.query.filter_by(name=item['name']).first():
+                    contact = Contact(**item)
+                    db.session.add(contact)
+            db.session.commit()
+            print("Contacts imported.")
+    except Exception as e:
+        print(f"Error importing contacts: {e}")
+
+    print("Data import completed.")
+
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

@@ -1,0 +1,20 @@
+[
+    {
+        "name": "Breakfast",
+        "description": "Daily continental breakfast",
+        "price": 15.0,
+        "is_active": true
+    },
+    {
+        "name": "Airport Shuttle",
+        "description": "One-way transfer to airport",
+        "price": 30.0,
+        "is_active": true
+    },
+    {
+        "name": "Spa Access",
+        "description": "Full day access to spa facilities",
+        "price": 50.0,
+        "is_active": true
+    }
+]

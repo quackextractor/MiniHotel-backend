@@ -1,0 +1,16 @@
+[
+    {
+        "name": "Summer Peak",
+        "start_date": "2026-06-01",
+        "end_date": "2026-08-31",
+        "rate_multiplier": 1.25,
+        "room_type": null
+    },
+    {
+        "name": "Winter Discount",
+        "start_date": "2026-01-01",
+        "end_date": "2026-02-28",
+        "rate_multiplier": 0.85,
+        "room_type": "Single"
+    }
+]

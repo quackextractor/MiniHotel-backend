@@ -1,0 +1,23 @@
+[
+    {
+        "first_name": "John",
+        "last_name": "Doe",
+        "email": "john.doe@example.com",
+        "phone": "555-0101",
+        "address": "123 Main St, Springfield"
+    },
+    {
+        "first_name": "Jane",
+        "last_name": "Smith",
+        "email": "jane.smith@example.com",
+        "phone": "555-0102",
+        "address": "456 Oak Ave, Metropolis"
+    },
+    {
+        "first_name": "Alice",
+        "last_name": "Johnson",
+        "email": "alice.j@example.com",
+        "phone": "555-0103",
+        "address": "789 Pine Ln, Gotham"
+    }
+]

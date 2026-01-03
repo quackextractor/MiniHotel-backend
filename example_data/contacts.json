@@ -1,0 +1,16 @@
+[
+    {
+        "role": "Manager",
+        "name": "Sarah Connor",
+        "phone": "555-1111",
+        "email": "manager@minihotel.com",
+        "on_call": true
+    },
+    {
+        "role": "Maintenance",
+        "name": "Bob Builder",
+        "phone": "555-2222",
+        "email": "fixit@minihotel.com",
+        "on_call": false
+    }
+]

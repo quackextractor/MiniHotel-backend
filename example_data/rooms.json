@@ -1,0 +1,34 @@
+[
+    {
+        "room_number": "101",
+        "room_type": "Single",
+        "description": "Cozy single room with a view",
+        "capacity": 1,
+        "base_rate": 80.0,
+        "is_active": true
+    },
+    {
+        "room_number": "102",
+        "room_type": "Double",
+        "description": "Spacious double room",
+        "capacity": 2,
+        "base_rate": 120.0,
+        "is_active": true
+    },
+    {
+        "room_number": "201",
+        "room_type": "Suite",
+        "description": "Luxury suite with balcony",
+        "capacity": 2,
+        "base_rate": 250.0,
+        "is_active": true
+    },
+    {
+        "room_number": "202",
+        "room_type": "Family",
+        "description": "Large room for families",
+        "capacity": 4,
+        "base_rate": 200.0,
+        "is_active": true
+    }
+]
