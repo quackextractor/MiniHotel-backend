@@ -177,3 +177,31 @@ class Contact(db.Model):
 
     def __repr__(self):
         return f'<Contact {self.name} - {self.role}>'
+
+
+class User(db.Model):
+    __tablename__ = 'users'
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(128), nullable=False)
+    created_at = db.Column(db.DateTime, default=db.func.now())
+
+    def __repr__(self):
+        return f'<User {self.username}>'
+
+
+class AuditLog(db.Model):
+    __tablename__ = 'audit_logs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    action = db.Column(db.String(100), nullable=False)
+    details = db.Column(db.Text)
+    timestamp = db.Column(db.DateTime, default=db.func.now())
+    ip_address = db.Column(db.String(50))
+
+    user = db.relationship('User', backref='audit_logs')
+
+    def __repr__(self):
+        return f'<AuditLog {self.action} by {self.user_id}>'

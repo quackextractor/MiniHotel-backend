@@ -4,16 +4,20 @@ from datetime import datetime, date, timedelta
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
-from database import db, Room, Guest, Booking, Event, Housekeeping, Maintenance, Contact, RoomGroup, SeasonalRate, \
-    Service, BookingService
 from schemas import (
     room_schema, rooms_schema, guest_schema, guests_schema,
     booking_schema, bookings_schema, event_schema, events_schema,
     housekeeping_schema, housekeepings_schema, maintenance_schema,
     maintenances_schema, contact_schema, contacts_schema,
     room_group_schema, room_groups_schema, seasonal_rate_schema, seasonal_rates_schema,
-    service_schema, services_schema, booking_service_schema
+    service_schema, services_schema, booking_service_schema,
+    user_schema, audit_logs_schema
 )
+import jwt
+import bcrypt
+from functools import wraps
+from database import db, Room, Guest, Booking, Event, Housekeeping, Maintenance, Contact, RoomGroup, SeasonalRate, \
+    Service, BookingService, User, AuditLog
 
 
 def create_app():
@@ -23,6 +27,7 @@ def create_app():
     app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///minihotel.db')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['JSON_SORT_KEYS'] = False
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key')  # Change this in production!
 
     # Initialize extensions
     db.init_app(app)
@@ -61,9 +66,167 @@ def health_check():
     return jsonify({'status': 'healthy', 'timestamp': datetime.now().isoformat()})
 
 
+# Auth Middleware
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+        if 'Authorization' in request.headers:
+            auth_header = request.headers['Authorization']
+            try:
+                token = auth_header.split(" ")[1]
+            except IndexError:
+                return jsonify({'message': 'Token is missing!'}), 401
+        
+        if not token:
+            return jsonify({'message': 'Token is missing!'}), 401
+
+        try:
+            data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
+            current_user = User.query.get(data['user_id'])
+            if not current_user:
+                return jsonify({'message': 'Token is invalid!'}), 401
+        except Exception as e:
+            return jsonify({'message': 'Token is invalid!', 'error': str(e)}), 401
+
+        return f(current_user, *args, **kwargs)
+
+    return decorated
+
+
+def log_audit(user_id, action, details=None):
+    """Helper to create audit logs"""
+    try:
+        log = AuditLog(
+            user_id=user_id,
+            action=action,
+            details=details,
+            ip_address=request.remote_addr
+        )
+        db.session.add(log)
+        db.session.commit()
+    except Exception as e:
+        print(f"Failed to create audit log: {e}")
+
+
+# Auth Endpoints
+@app.route('/api/auth/status', methods=['GET'])
+def auth_status():
+    """Check if admin account exists
+    ---
+    responses:
+      200:
+        description: Status
+    """
+    admin_exists = User.query.first() is not None
+    return jsonify({'initialized': admin_exists})
+
+
+@app.route('/api/auth/register', methods=['POST'])
+def register():
+    """Register the initial admin account (only allowed if no users exist)
+    ---
+    responses:
+      201:
+        description: User created
+      400:
+        description: Users already exist
+    """
+    if User.query.first():
+        return jsonify({'message': 'Admin account already exists. Please login.'}), 400
+
+    data = request.get_json()
+    if not data or not data.get('username') or not data.get('password'):
+        return jsonify({'message': 'Missing username or password'}), 400
+
+    hashed_password = bcrypt.hashpw(data['password'].encode('utf-8'), bcrypt.gensalt())
+    
+    new_user = User(
+        username=data['username'],
+        password_hash=hashed_password.decode('utf-8')
+    )
+    
+    db.session.add(new_user)
+    db.session.commit()
+    
+    log_audit(new_user.id, "REGISTER", "Initial admin registration")
+    
+    return jsonify({'message': 'Admin account created successfully'}), 201
+
+
+@app.route('/api/auth/login', methods=['POST'])
+def login():
+    """Login and get token
+    ---
+    responses:
+      200:
+        description: Login successful
+      401:
+        description: Invalid credentials
+    """
+    auth = request.get_json()
+    if not auth or not auth.get('username') or not auth.get('password'):
+        return jsonify({'message': 'Could not verify', 'WWW-Authenticate': 'Basic realm="Login required!"'}), 401
+
+    user = User.query.filter_by(username=auth.get('username')).first()
+
+    if not user:
+        return jsonify({'message': 'User not found'}), 401
+
+    if bcrypt.checkpw(auth.get('password').encode('utf-8'), user.password_hash.encode('utf-8')):
+        token = jwt.encode({
+            'user_id': user.id,
+            'exp': datetime.utcnow() + timedelta(hours=24)
+        }, app.config['SECRET_KEY'], algorithm="HS256")
+        
+        log_audit(user.id, "LOGIN", "User logged in")
+
+        return jsonify({'token': token, 'username': user.username})
+
+    return jsonify({'message': 'Invalid password', 'WWW-Authenticate': 'Basic realm="Login required!"'}), 401
+
+
+@app.route('/api/auth/profile', methods=['PUT'])
+@token_required
+def update_profile(current_user):
+    """Update admin credentials
+    ---
+    responses:
+      200:
+        description: Profile updated
+    """
+    data = request.get_json()
+    
+    if data.get('password'):
+        hashed_password = bcrypt.hashpw(data['password'].encode('utf-8'), bcrypt.gensalt())
+        current_user.password_hash = hashed_password.decode('utf-8')
+        
+    if data.get('username'):
+        current_user.username = data['username']
+        
+    db.session.commit()
+    log_audit(current_user.id, "UPDATE_PROFILE", "User updated profile")
+    
+    return jsonify({'message': 'Profile updated successfully'})
+
+
+@app.route('/api/audit-logs', methods=['GET'])
+@token_required
+def get_audit_logs(current_user):
+    """Get audit logs
+    ---
+    responses:
+      200:
+        description: List of audit logs
+    """
+    logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).all()
+    return jsonify(audit_logs_schema.dump(logs))
+
+
 # Room endpoints
 @app.route('/api/rooms', methods=['GET'])
-def get_rooms():
+@token_required
+def get_rooms(current_user):
     """Get all rooms
     ---
     parameters:
@@ -85,7 +248,8 @@ def get_rooms():
 
 
 @app.route('/api/rooms/<int:room_id>', methods=['GET'])
-def get_room(room_id):
+@token_required
+def get_room(current_user, room_id):
     """Get room by ID
     ---
     parameters:
@@ -104,7 +268,8 @@ def get_room(room_id):
 
 
 @app.route('/api/rooms', methods=['POST'])
-def create_room():
+@token_required
+def create_room(current_user):
     """Create a new room
     ---
     parameters:
@@ -160,7 +325,8 @@ def create_room():
 
 # Room Group endpoints
 @app.route('/api/room-groups', methods=['GET'])
-def get_room_groups():
+@token_required
+def get_room_groups(current_user):
     """Get all room groups in tree structure
     ---
     responses:
@@ -172,7 +338,8 @@ def get_room_groups():
 
 
 @app.route('/api/room-groups', methods=['POST'])
-def create_room_group():
+@token_required
+def create_room_group(current_user):
     """Create a new room group
     ---
     parameters:
@@ -211,7 +378,8 @@ def create_room_group():
 
 # Seasonal Rates endpoints
 @app.route('/api/seasonal-rates', methods=['GET'])
-def get_seasonal_rates():
+@token_required
+def get_seasonal_rates(current_user):
     """Get all seasonal rates
     ---
     responses:
@@ -223,7 +391,8 @@ def get_seasonal_rates():
 
 
 @app.route('/api/seasonal-rates', methods=['POST'])
-def create_seasonal_rate():
+@token_required
+def create_seasonal_rate(current_user):
     """Create a new seasonal rate
     ---
     parameters:
@@ -276,7 +445,8 @@ def create_seasonal_rate():
 
 # Services endpoints
 @app.route('/api/services', methods=['GET'])
-def get_services():
+@token_required
+def get_services(current_user):
     """Get all active services
     ---
     responses:
@@ -288,7 +458,8 @@ def get_services():
 
 
 @app.route('/api/services', methods=['POST'])
-def create_service():
+@token_required
+def create_service(current_user):
     """Create a new service
     ---
     parameters:
@@ -328,7 +499,8 @@ def create_service():
 
 # Guest endpoints
 @app.route('/api/guests', methods=['GET'])
-def get_guests():
+@token_required
+def get_guests(current_user):
     """Get all guests
     ---
     parameters:
@@ -356,7 +528,8 @@ def get_guests():
 
 
 @app.route('/api/guests/<int:guest_id>', methods=['GET'])
-def get_guest(guest_id):
+@token_required
+def get_guest(current_user, guest_id):
     """Get guest by ID
     ---
     parameters:
@@ -375,7 +548,8 @@ def get_guest(guest_id):
 
 
 @app.route('/api/guests', methods=['POST'])
-def create_guest():
+@token_required
+def create_guest(current_user):
     """Create a new guest
     ---
     parameters:
@@ -421,7 +595,8 @@ def create_guest():
 
 # Enhanced guest search endpoint
 @app.route('/api/guests/search', methods=['GET'])
-def search_guests():
+@token_required
+def search_guests(current_user):
     """Enhanced guest search by name, email, or phone
     ---
     parameters:
@@ -451,7 +626,8 @@ def search_guests():
 
 # Guest booking history endpoint
 @app.route('/api/guests/<int:guest_id>/bookings', methods=['GET'])
-def get_guest_bookings(guest_id):
+@token_required
+def get_guest_bookings(current_user, guest_id):
     """Get booking history for a specific guest
     ---
     parameters:
@@ -472,7 +648,8 @@ def get_guest_bookings(guest_id):
 
 # Booking endpoints
 @app.route('/api/bookings', methods=['GET'])
-def get_bookings():
+@token_required
+def get_bookings(current_user):
     """Get all bookings with optional filters
     ---
     parameters:
@@ -531,7 +708,8 @@ def get_bookings():
 
 
 @app.route('/api/bookings/<int:booking_id>', methods=['GET'])
-def get_booking(booking_id):
+@token_required
+def get_booking(current_user, booking_id):
     """Get booking by ID
     ---
     parameters:
@@ -550,7 +728,8 @@ def get_booking(booking_id):
 
 
 @app.route('/api/bookings/calculate-rate', methods=['POST'])
-def calculate_booking_rate():
+@token_required
+def calculate_booking_rate(current_user):
     """Calculate booking rate considering seasonal rates and number of guests
     ---
     parameters:
@@ -627,7 +806,8 @@ def calculate_booking_rate():
 
 
 @app.route('/api/bookings', methods=['POST'])
-def create_booking():
+@token_required
+def create_booking(current_user):
     """Create a new booking
     ---
     parameters:
@@ -723,7 +903,8 @@ def create_booking():
 
 
 @app.route('/api/bookings/<int:booking_id>/status', methods=['PATCH'])
-def update_booking_status(booking_id):
+@token_required
+def update_booking_status(current_user, booking_id):
     """Update booking status
     ---
     parameters:
@@ -764,7 +945,8 @@ def update_booking_status(booking_id):
 
 # Booking Services endpoints
 @app.route('/api/bookings/<int:booking_id>/services', methods=['POST'])
-def add_booking_service(booking_id):
+@token_required
+def add_booking_service(current_user, booking_id):
     """Add a service to a booking
     ---
     parameters:
@@ -815,7 +997,8 @@ def add_booking_service(booking_id):
 
 # Calendar availability endpoint
 @app.route('/api/availability', methods=['GET'])
-def get_availability():
+@token_required
+def get_availability(current_user):
     """Get room availability for a date range
     ---
     parameters:
@@ -883,7 +1066,8 @@ def get_availability():
 
 # Weekly calendar view
 @app.route('/api/calendar/weekly', methods=['GET'])
-def get_weekly_calendar():
+@token_required
+def get_weekly_calendar(current_user):
     """Get weekly calendar view
     ---
     parameters:
@@ -950,7 +1134,8 @@ def get_weekly_calendar():
 
 # Monthly calendar view
 @app.route('/api/calendar/monthly', methods=['GET'])
-def get_monthly_calendar():
+@token_required
+def get_monthly_calendar(current_user):
     """Get monthly calendar view
     ---
     parameters:
@@ -1014,7 +1199,8 @@ def get_monthly_calendar():
 
 # Event endpoints
 @app.route('/api/events', methods=['GET'])
-def get_events():
+@token_required
+def get_events(current_user):
     """Get all events
     ---
     parameters:
@@ -1052,7 +1238,8 @@ def get_events():
 
 
 @app.route('/api/events/<int:event_id>', methods=['GET'])
-def get_event(event_id):
+@token_required
+def get_event(current_user, event_id):
     """Get event by ID
     ---
     parameters:
@@ -1071,7 +1258,8 @@ def get_event(event_id):
 
 
 @app.route('/api/events', methods=['POST'])
-def create_event():
+@token_required
+def create_event(current_user):
     """Create a new event
     ---
     parameters:
@@ -1135,7 +1323,8 @@ def create_event():
 
 # Housekeeping endpoints
 @app.route('/api/housekeeping', methods=['GET'])
-def get_housekeeping():
+@token_required
+def get_housekeeping(current_user):
     """Get all housekeeping records
     ---
     parameters:
@@ -1169,7 +1358,8 @@ def get_housekeeping():
 
 
 @app.route('/api/housekeeping/<int:record_id>', methods=['GET'])
-def get_housekeeping_record(record_id):
+@token_required
+def get_housekeeping_record(current_user, record_id):
     """Get housekeeping record by ID
     ---
     parameters:
@@ -1188,7 +1378,8 @@ def get_housekeeping_record(record_id):
 
 
 @app.route('/api/housekeeping', methods=['POST'])
-def create_housekeeping():
+@token_required
+def create_housekeeping(current_user):
     """Create a new housekeeping record
     ---
     parameters:
@@ -1235,7 +1426,8 @@ def create_housekeeping():
 
 # Maintenance endpoints
 @app.route('/api/maintenance', methods=['GET'])
-def get_maintenance():
+@token_required
+def get_maintenance(current_user):
     """Get all maintenance tickets
     ---
     parameters:
@@ -1269,7 +1461,8 @@ def get_maintenance():
 
 
 @app.route('/api/maintenance/<int:ticket_id>', methods=['GET'])
-def get_maintenance_ticket(ticket_id):
+@token_required
+def get_maintenance_ticket(current_user, ticket_id):
     """Get maintenance ticket by ID
     ---
     parameters:
@@ -1288,7 +1481,8 @@ def get_maintenance_ticket(ticket_id):
 
 
 @app.route('/api/maintenance', methods=['POST'])
-def create_maintenance():
+@token_required
+def create_maintenance(current_user):
     """Create a new maintenance ticket
     ---
     parameters:
@@ -1346,7 +1540,8 @@ def create_maintenance():
 
 # Contact endpoints
 @app.route('/api/contacts', methods=['GET'])
-def get_contacts():
+@token_required
+def get_contacts(current_user):
     """Get all contacts
     ---
     parameters:
@@ -1380,7 +1575,8 @@ def get_contacts():
 
 
 @app.route('/api/contacts/<int:contact_id>', methods=['GET'])
-def get_contact(contact_id):
+@token_required
+def get_contact(current_user, contact_id):
     """Get contact by ID
     ---
     parameters:
@@ -1399,7 +1595,8 @@ def get_contact(contact_id):
 
 
 @app.route('/api/contacts', methods=['POST'])
-def create_contact():
+@token_required
+def create_contact(current_user):
     """Create a new contact
     ---
     parameters:
@@ -1445,7 +1642,8 @@ def create_contact():
 
 # Statistics endpoints
 @app.route('/api/statistics/occupancy', methods=['GET'])
-def get_occupancy_stats():
+@token_required
+def get_occupancy_stats(current_user):
     """Get room occupancy statistics
     ---
     parameters:
@@ -1514,7 +1712,8 @@ def get_occupancy_stats():
 
 
 @app.route('/api/statistics/yearly-summary', methods=['GET'])
-def get_yearly_summary():
+@token_required
+def get_yearly_summary(current_user):
     """Get yearly occupancy summary (GitHub contributions style)
     ---
     parameters:

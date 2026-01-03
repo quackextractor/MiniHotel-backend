@@ -1,7 +1,7 @@
 from flask_marshmallow import Marshmallow
 
 from database import Room, Guest, Booking, Event, Housekeeping, Maintenance, Contact, RoomGroup, SeasonalRate, Service, \
-    BookingService
+    BookingService, User, AuditLog
 
 ma = Marshmallow()
 
@@ -165,7 +165,31 @@ class ContactSchema(ma.Schema):
     name = ma.Str()
     phone = ma.Str()
     email = ma.Str()
+    email = ma.Str()
     on_call = ma.Bool()
+
+class UserSchema(ma.Schema):
+    class Meta:
+        model = User
+        load_instance = True
+
+    id = ma.Int()
+    username = ma.Str()
+    created_at = ma.DateTime()
+
+class AuditLogSchema(ma.Schema):
+    class Meta:
+        model = AuditLog
+        load_instance = True
+
+    id = ma.Int()
+    user_id = ma.Int()
+    action = ma.Str()
+    details = ma.Str()
+    timestamp = ma.DateTime()
+    ip_address = ma.Str()
+    user = ma.Nested(UserSchema)
+
 
 # Initialize schemas
 room_schema = RoomSchema()
@@ -190,3 +214,7 @@ service_schema = ServiceSchema()
 services_schema = ServiceSchema(many=True)
 booking_service_schema = BookingServiceSchema()
 booking_services_schema = BookingServiceSchema(many=True)
+user_schema = UserSchema()
+users_schema = UserSchema(many=True)
+audit_log_schema = AuditLogSchema()
+audit_logs_schema = AuditLogSchema(many=True)
