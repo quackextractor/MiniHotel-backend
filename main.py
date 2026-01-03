@@ -21,12 +21,7 @@ template = {
     "swagger": "2.0",
     "info": {
         "title": "Minihotel Management API",
-        "description": "REST API for hotel management system based on Minihotel Megadocs - Enhanced Version",
-        "version": "2.0.0",
-        "contact": {
-            "name": "API Support",
-            "email": "support@minihotel.com"
-        }
+        "description": "REST API for hotel management system"
     },
     "basePath": "/api",
     "schemes": ["http", "https"]

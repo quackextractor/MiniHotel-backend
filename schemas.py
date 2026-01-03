@@ -1,6 +1,6 @@
 from flask_marshmallow import Marshmallow
 
-from database import Room, Guest, Booking, Event, Housekeeping, Maintenance, Contact, RoomGroup, SeasonalRate, Service, \
+from database import Room, Guest, Booking, Housekeeping, Maintenance, Contact, RoomGroup, SeasonalRate, Service, \
     BookingService, User, AuditLog
 
 ma = Marshmallow()
@@ -108,21 +108,6 @@ class BookingSchema(ma.Schema):
     room = ma.Nested(RoomSchema)
     services = ma.Nested(BookingServiceSchema(many=True))
 
-class EventSchema(ma.Schema):
-    class Meta:
-        model = Event
-        load_instance = True
-
-    id = ma.Int()
-    event_id = ma.Str()
-    name = ma.Str()
-    event_date = ma.Date()
-    space = ma.Str()
-    expected_guests = ma.Int()
-    status = ma.Str()
-    contact_email = ma.Str()
-    contact_phone = ma.Str()
-    notes = ma.Str()
 
 class HousekeepingSchema(ma.Schema):
     class Meta:
@@ -198,8 +183,6 @@ guest_schema = GuestSchema()
 guests_schema = GuestSchema(many=True)
 booking_schema = BookingSchema()
 bookings_schema = BookingSchema(many=True)
-event_schema = EventSchema()
-events_schema = EventSchema(many=True)
 housekeeping_schema = HousekeepingSchema()
 housekeepings_schema = HousekeepingSchema(many=True)
 maintenance_schema = MaintenanceSchema()

@@ -112,22 +112,6 @@ class Booking(db.Model):
         return f'<Booking {self.booking_id}>'
 
 
-class Event(db.Model):
-    __tablename__ = 'events'
-
-    id = db.Column(db.Integer, primary_key=True)
-    event_id = db.Column(db.String(20), unique=True, nullable=False)
-    name = db.Column(db.String(200), nullable=False)
-    event_date = db.Column(db.Date, nullable=False)
-    space = db.Column(db.String(100), nullable=False)
-    expected_guests = db.Column(db.Integer)
-    status = db.Column(db.String(20), nullable=False)  # confirmed, tentative, cancelled, pending_payment
-    contact_email = db.Column(db.String(120))
-    contact_phone = db.Column(db.String(20))
-    notes = db.Column(db.Text)
-
-    def __repr__(self):
-        return f'<Event {self.event_id}>'
 
 
 class Housekeeping(db.Model):

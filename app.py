@@ -6,7 +6,7 @@ from flask_cors import CORS
 
 from schemas import (
     room_schema, rooms_schema, guest_schema, guests_schema,
-    booking_schema, bookings_schema, event_schema, events_schema,
+    booking_schema, bookings_schema,
     housekeeping_schema, housekeepings_schema, maintenance_schema,
     maintenances_schema, contact_schema, contacts_schema,
     room_group_schema, room_groups_schema, seasonal_rate_schema, seasonal_rates_schema,
@@ -16,7 +16,7 @@ from schemas import (
 import jwt
 import bcrypt
 from functools import wraps
-from database import db, Room, Guest, Booking, Event, Housekeeping, Maintenance, Contact, RoomGroup, SeasonalRate, \
+from database import db, Room, Guest, Booking, Housekeeping, Maintenance, Contact, RoomGroup, SeasonalRate, \
     Service, BookingService, User, AuditLog
 
 
@@ -970,6 +970,33 @@ def update_booking_status(current_user, booking_id):
     return jsonify(booking_schema.dump(booking))
 
 
+@app.route('/api/bookings/<int:booking_id>', methods=['DELETE'])
+@token_required
+def delete_booking(current_user, booking_id):
+    """Delete a booking
+    ---
+    parameters:
+      - name: booking_id
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: Booking deleted
+      404:
+        description: Booking not found
+    """
+    booking = Booking.query.get_or_404(booking_id)
+
+    # Clean up related records
+    BookingService.query.filter_by(booking_id=booking.id).delete()
+    
+    db.session.delete(booking)
+    db.session.commit()
+
+    return jsonify({'message': 'Booking deleted successfully'})
+
+
 # Booking Services endpoints
 @app.route('/api/bookings/<int:booking_id>/services', methods=['POST'])
 @token_required
@@ -1221,131 +1248,6 @@ def get_monthly_calendar(current_user):
 
         calendar_data['rooms'].append(room_data)
 
-    return jsonify(calendar_data)
-
-
-# Event endpoints
-@app.route('/api/events', methods=['GET'])
-@token_required
-def get_events(current_user):
-    """Get all events
-    ---
-    parameters:
-      - name: status
-        in: query
-        type: string
-        required: false
-        description: Filter by status
-      - name: date
-        in: query
-        type: string
-        required: false
-        description: Filter by date (YYYY-MM-DD)
-    responses:
-      200:
-        description: List of events
-    """
-    status = request.args.get('status')
-    date_str = request.args.get('date')
-
-    query = Event.query
-
-    if status:
-        query = query.filter(Event.status == status)
-
-    if date_str:
-        try:
-            filter_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-            query = query.filter(Event.event_date == filter_date)
-        except ValueError:
-            return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
-
-    events = query.all()
-    return jsonify(events_schema.dump(events))
-
-
-@app.route('/api/events/<int:event_id>', methods=['GET'])
-@token_required
-def get_event(current_user, event_id):
-    """Get event by ID
-    ---
-    parameters:
-      - name: event_id
-        in: path
-        type: integer
-        required: true
-    responses:
-      200:
-        description: Event data
-      404:
-        description: Event not found
-    """
-    event = Event.query.get_or_404(event_id)
-    return jsonify(event_schema.dump(event))
-
-
-@app.route('/api/events', methods=['POST'])
-@token_required
-def create_event(current_user):
-    """Create a new event
-    ---
-    parameters:
-      - in: body
-        name: event
-        schema:
-          type: object
-          required:
-            - name
-            - event_date
-            - space
-            - status
-          properties:
-            name:
-              type: string
-            event_date:
-              type: string
-              format: date
-            space:
-              type: string
-            expected_guests:
-              type: integer
-            status:
-              type: string
-            contact_email:
-              type: string
-            contact_phone:
-              type: string
-            notes:
-              type: string
-    responses:
-      201:
-        description: Event created
-      400:
-        description: Invalid data
-    """
-    data = request.get_json()
-
-    # Generate event ID
-    last_event = Event.query.order_by(Event.id.desc()).first()
-    new_id = last_event.id + 1 if last_event else 1
-    event_id = f"EVT-{new_id:04d}"
-
-    event = Event(
-        event_id=event_id,
-        name=data['name'],
-        event_date=datetime.strptime(data['event_date'], '%Y-%m-%d').date(),
-        space=data['space'],
-        expected_guests=data.get('expected_guests'),
-        status=data['status'],
-        contact_email=data.get('contact_email'),
-        contact_phone=data.get('contact_phone'),
-        notes=data.get('notes')
-    )
-
-    db.session.add(event)
-    db.session.commit()
-
-    return jsonify(event_schema.dump(event)), 201
 
 
 # Housekeeping endpoints
