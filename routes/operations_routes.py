@@ -54,6 +54,29 @@ def create_housekeeping(current_user):
     return jsonify(housekeeping_schema.dump(record)), 201
 
 
+@operations_bp.route('/housekeeping/<int:record_id>', methods=['PUT'])
+@token_required
+def update_housekeeping(current_user, record_id):
+    """Update a housekeeping record"""
+    record = Housekeeping.query.get_or_404(record_id)
+    data = request.get_json()
+
+    if 'status' in data:
+        record.status = data['status']
+    
+    if 'cleaner' in data:
+        record.cleaner = data['cleaner']
+    
+    if 'notes' in data:
+        record.notes = data['notes']
+        
+    if 'last_cleaned' in data:
+         record.last_cleaned = datetime.strptime(data['last_cleaned'], '%Y-%m-%d').date()
+
+    db.session.commit()
+    return jsonify(housekeeping_schema.dump(record))
+
+
 # Maintenance endpoints
 @operations_bp.route('/maintenance', methods=['GET'])
 @token_required
