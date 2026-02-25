@@ -55,12 +55,15 @@ class BookingService:
 
     @staticmethod
     def create_booking(data):
+        check_in_date = datetime.strptime(data['check_in'], '%Y-%m-%d').date()
+        check_out_date = datetime.strptime(data['check_out'], '%Y-%m-%d').date()
+
+        if check_in_date >= check_out_date:
+            raise ValueError('Check-out date must be after check-in date')
+
         # Check room availability (skip for draft status)
         status = data.get('status', 'confirmed')
         if status not in ['draft', 'tentative']:
-            check_in_date = datetime.strptime(data['check_in'], '%Y-%m-%d').date()
-            check_out_date = datetime.strptime(data['check_out'], '%Y-%m-%d').date()
-
             conflicting_booking = Booking.query.filter(
                 Booking.room_id == data['room_id'],
                 Booking.status.in_(['confirmed', 'checked_in', 'pending_payment']),

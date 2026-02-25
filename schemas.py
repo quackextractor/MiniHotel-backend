@@ -67,6 +67,7 @@ class RoomSchema(ma.Schema):
     base_rate = ma.Float()
     group_id = ma.Int()
     is_active = ma.Bool()
+    amenities = ma.Str()
     group = ma.Nested(RoomGroupSchema)
 
 class GuestSchema(ma.Schema):

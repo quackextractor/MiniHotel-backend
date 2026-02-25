@@ -156,6 +156,40 @@ class TestMiniHotelAPI(unittest.TestCase):
         # Cleanup - store the created room ID
         self.test_room_id = room_data["id"]
 
+    def test_update_and_delete_room(self):
+        """Test updating and deleting a room"""
+        room_data = self.test_room_data.copy()
+        room_data["room_number"] = f"UPD_DEL_{int(time.time())}"
+        room_data["amenities"] = "wifi,tv"
+
+        response = self.session.post(
+            f"{BASE_URL}/rooms",
+            json=room_data,
+            headers={"Content-Type": "application/json"}
+        )
+        self.assertEqual(response.status_code, 201)
+        room_id = response.json()["id"]
+
+        # Update
+        update_data = {"capacity": 4, "amenities": "wifi,tv,coffee"}
+        response = self.session.put(
+            f"{BASE_URL}/rooms/{room_id}",
+            json=update_data,
+            headers={"Content-Type": "application/json"}
+        )
+        self.assertEqual(response.status_code, 200)
+        updated_room = response.json()
+        self.assertEqual(updated_room["capacity"], 4)
+        self.assertEqual(updated_room["amenities"], "wifi,tv,coffee")
+
+        # Delete
+        response = self.session.delete(f"{BASE_URL}/rooms/{room_id}")
+        self.assertEqual(response.status_code, 200)
+
+        # Verify deletion
+        response = self.session.get(f"{BASE_URL}/rooms/{room_id}")
+        self.assertEqual(response.status_code, 404)
+
     # Guest Tests
     def test_create_and_get_guest(self):
         """Test creating a guest and then retrieving it"""
@@ -230,6 +264,34 @@ class TestMiniHotelAPI(unittest.TestCase):
         self.assertEqual(response.status_code, 201)
         group_response = response.json()
         self.assertIn("name", group_response)
+
+    def test_update_and_delete_room_group(self):
+        """Test updating and deleting a room group"""
+        group_data = {
+            "name": f"Group to modify {int(time.time())}",
+            "description": "Will be updated"
+        }
+        response = self.session.post(
+            f"{BASE_URL}/room-groups",
+            json=group_data,
+            headers={"Content-Type": "application/json"}
+        )
+        self.assertEqual(response.status_code, 201)
+        group_id = response.json()["id"]
+
+        # Update
+        update_data = {"name": "Updated Group Name"}
+        response = self.session.put(
+            f"{BASE_URL}/room-groups/{group_id}",
+            json=update_data,
+            headers={"Content-Type": "application/json"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["name"], "Updated Group Name")
+
+        # Delete
+        response = self.session.delete(f"{BASE_URL}/room-groups/{group_id}")
+        self.assertEqual(response.status_code, 200)
 
     # Seasonal Rate Tests
     def test_create_seasonal_rate(self):
@@ -369,6 +431,36 @@ class TestMiniHotelAPI(unittest.TestCase):
         self.test_guest_id = guest_data["id"]
         self.test_room_id = room_data["id"]
         self.test_booking_id = booking_response["id"]
+
+    def test_create_booking_invalid_dates(self):
+        """Test creating a booking with check-out date before check-in date"""
+        guest_data = self.test_guest_data.copy()
+        guest_data["email"] = f"invdate{int(time.time())}@example.com"
+        guest_response = self.session.post(
+            f"{BASE_URL}/guests", json=guest_data, headers={"Content-Type": "application/json"}
+        )
+        self.assertEqual(guest_response.status_code, 201)
+
+        room_data = self.test_booking_room_data()
+        room_data["room_number"] = f"INVDATE{int(time.time())}"
+        room_response = self.session.post(
+            f"{BASE_URL}/rooms", json=room_data, headers={"Content-Type": "application/json"}
+        )
+        self.assertEqual(room_response.status_code, 201)
+
+        invalid_booking_data = {
+            "guest_id": guest_response.json()["id"],
+            "room_id": room_response.json()["id"],
+            "check_in": (date.today() + timedelta(days=3)).isoformat(),
+            "check_out": (date.today() + timedelta(days=1)).isoformat(),
+            "number_of_guests": 2,
+            "status": "confirmed"
+        }
+        res = self.session.post(
+            f"{BASE_URL}/bookings", json=invalid_booking_data, headers={"Content-Type": "application/json"}
+        )
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("must be after check-in date", res.json().get("error", ""))
 
     def test_get_bookings_with_filters(self):
         """Test getting bookings with various filters"""

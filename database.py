@@ -78,6 +78,7 @@ class Room(db.Model):
     base_rate = db.Column(db.Float, nullable=False)
     group_id = db.Column(db.Integer, db.ForeignKey('room_groups.id'))
     is_active = db.Column(db.Boolean, default=True)
+    amenities = db.Column(db.String(255), default="")
 
     def __repr__(self):
         return f'<Room {self.room_number}>'
