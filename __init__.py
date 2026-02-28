@@ -38,6 +38,7 @@ def create_app():
     from routes.service_routes import service_bp
     from routes.operations_routes import operations_bp
     from routes.report_routes import report_bp
+    from routes.exchange_routes import exchange_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(room_bp)
@@ -46,6 +47,7 @@ def create_app():
     app.register_blueprint(service_bp)
     app.register_blueprint(operations_bp)
     app.register_blueprint(report_bp)
+    app.register_blueprint(exchange_bp)
 
     from routes.event_routes import event_bp
     app.register_blueprint(event_bp)

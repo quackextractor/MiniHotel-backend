@@ -204,3 +204,15 @@ class AuditLog(db.Model):
 
     def __repr__(self):
         return f'<AuditLog {self.action} by {self.user_id}>'
+
+class ExchangeRate(db.Model):
+    __tablename__ = 'exchange_rates'
+
+    id = db.Column(db.Integer, primary_key=True)
+    currency_code = db.Column(db.String(10), unique=True, nullable=False)
+    rate = db.Column(db.Float, nullable=False)
+    last_updated = db.Column(db.DateTime, default=db.func.now(), onupdate=db.func.now())
+    is_tracked = db.Column(db.Boolean, default=True)  # Set to True for currencies we want to actively fetch
+
+    def __repr__(self):
+        return f'<ExchangeRate {self.currency_code}: {self.rate}>'
