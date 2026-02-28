@@ -41,3 +41,33 @@ def create_service(current_user):
     db.session.commit()
 
     return jsonify(service_schema.dump(service)), 201
+
+
+@service_bp.route('/<int:service_id>', methods=['PUT'])
+@token_required
+def update_service(current_user, service_id):
+    """Update a service"""
+    service = Service.query.get_or_404(service_id)
+    data = request.get_json()
+
+    if 'name' in data:
+        service.name = data['name']
+    if 'description' in data:
+        service.description = data['description']
+    if 'price' in data:
+        service.price = data['price']
+    if 'is_active' in data:
+        service.is_active = data['is_active']
+
+    db.session.commit()
+    return jsonify(service_schema.dump(service))
+
+
+@service_bp.route('/<int:service_id>', methods=['DELETE'])
+@token_required
+def delete_service(current_user, service_id):
+    """Soft delete a service"""
+    service = Service.query.get_or_404(service_id)
+    service.is_active = False
+    db.session.commit()
+    return jsonify({'message': 'Service deleted successfully'})

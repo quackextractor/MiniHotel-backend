@@ -228,6 +228,32 @@ class TestMiniHotelAPI(unittest.TestCase):
         # Store guest ID
         self.test_guest_id = guest_data["id"]
 
+    def test_update_and_delete_guest(self):
+        """Test updating and deleting a guest"""
+        guest_data = self.test_guest_data.copy()
+        guest_data["email"] = f"upddel{int(time.time())}@example.com"
+
+        response = self.session.post(
+            f"{BASE_URL}/guests",
+            json=guest_data,
+            headers={"Content-Type": "application/json"}
+        )
+        self.assertEqual(response.status_code, 201)
+        guest_id = response.json()["id"]
+
+        update_data = {"first_name": "UpdatedName"}
+        response = self.session.put(
+            f"{BASE_URL}/guests/{guest_id}",
+            json=update_data,
+            headers={"Content-Type": "application/json"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["first_name"], "UpdatedName")
+
+        # Delete
+        response = self.session.delete(f"{BASE_URL}/guests/{guest_id}")
+        self.assertEqual(response.status_code, 200)
+
     # Room Group Tests
     def test_get_room_groups(self):
         """Test getting room groups"""
@@ -330,6 +356,41 @@ class TestMiniHotelAPI(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         services = response.json()
         self.assertIsInstance(services, list)
+
+    def test_update_and_delete_service(self):
+        """Test updating and deleting services"""
+        # POST /api/services
+        service_data = {
+            "name": f"Test Service {int(time.time())}",
+            "description": "To be updated",
+            "price": 25.0
+        }
+        response = self.session.post(
+            f"{BASE_URL}/services",
+            json=service_data,
+            headers={"Content-Type": "application/json"}
+        )
+        self.assertEqual(response.status_code, 201)
+        service_id = response.json()["id"]
+
+        # PUT /api/services/{id}
+        update_data = {
+            "name": "Updated Service Name",
+            "price": 30.0
+        }
+        response = self.session.put(
+            f"{BASE_URL}/services/{service_id}",
+            json=update_data,
+            headers={"Content-Type": "application/json"}
+        )
+        self.assertEqual(response.status_code, 200)
+        updated = response.json()
+        self.assertEqual(updated["name"], "Updated Service Name")
+        self.assertEqual(updated["price"], 30.0)
+
+        # DELETE /api/services/{id}
+        response = self.session.delete(f"{BASE_URL}/services/{service_id}")
+        self.assertEqual(response.status_code, 200)
 
     # Booking Tests
     def test_calculate_booking_rate(self):

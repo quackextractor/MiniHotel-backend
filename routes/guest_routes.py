@@ -61,6 +61,43 @@ def create_guest(current_user):
     return jsonify(guest_schema.dump(guest)), 201
 
 
+@guest_bp.route('/<int:guest_id>', methods=['PUT'])
+@token_required
+def update_guest(current_user, guest_id):
+    """Update a guest"""
+    guest = Guest.query.get_or_404(guest_id)
+    data = request.get_json()
+
+    if 'first_name' in data:
+        guest.first_name = data['first_name']
+    if 'last_name' in data:
+        guest.last_name = data['last_name']
+    if 'email' in data:
+        guest.email = data['email']
+    if 'phone' in data:
+        guest.phone = data['phone']
+    if 'address' in data:
+        guest.address = data['address']
+
+    db.session.commit()
+    return jsonify(guest_schema.dump(guest))
+
+
+@guest_bp.route('/<int:guest_id>', methods=['DELETE'])
+@token_required
+def delete_guest(current_user, guest_id):
+    """Delete a guest"""
+    guest = Guest.query.get_or_404(guest_id)
+    
+    # Check if guest has bookings
+    if guest.bookings:
+        return jsonify({'error': 'Cannot delete guest with existing bookings'}), 400
+        
+    db.session.delete(guest)
+    db.session.commit()
+    return jsonify({'message': 'Guest deleted successfully'})
+
+
 @guest_bp.route('/search', methods=['GET'])
 @token_required
 def search_guests(current_user):
