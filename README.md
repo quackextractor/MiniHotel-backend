@@ -15,15 +15,11 @@ A comprehensive REST API for hotel management system based on the Minihotel Mega
 
 ## Quick Start
 
-1. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. **Run the application:**
+1. **Run the application:**
    ```bash
    python main.py
    ```
+   *Note: The script will automatically create a `.venv` and install dependencies from `requirements.txt` if not already present. To use global packages instead, use `python main.py --use-global`.*
 
 3. **Access the API:**
    - API Base URL: `http://localhost:5000/api`
