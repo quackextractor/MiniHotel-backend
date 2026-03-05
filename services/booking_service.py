@@ -35,6 +35,10 @@ class BookingService:
         if number_of_guests > 2:  # Example: charge 20% more for extra guests
             capacity_multiplier = 1.0 + (number_of_guests - 2) * 0.2
 
+        # Check for capacity exceeded warning
+        capacity_exceeded = number_of_guests > room.capacity
+        max_capacity = room.capacity
+
         # Calculate services cost
         services_total = 0
         if service_ids:
@@ -48,6 +52,8 @@ class BookingService:
             'base_amount': base_amount,
             'seasonal_adjustment': seasonal_adjustment,
             'capacity_multiplier': capacity_multiplier,
+            'capacity_exceeded': capacity_exceeded,
+            'max_capacity': max_capacity,
             'services_total': services_total,
             'total_amount': round(total_amount, 2),
             'total_nights': total_nights

@@ -431,6 +431,51 @@ class TestMiniHotelAPI(unittest.TestCase):
         # Store room ID for cleanup
         self.test_room_id = room_data["id"]
 
+    def test_calculate_booking_rate_capacity_warning(self):
+        """Test booking rate calculation with capacity warning"""
+        # Create a room with capacity 2
+        room_data = self.test_room_data.copy()
+        room_data["room_number"] = f"CAPWARN{int(time.time())}"
+        room_data["capacity"] = 2
+
+        room_response = self.session.post(
+            f"{BASE_URL}/rooms",
+            json=room_data,
+            headers={"Content-Type": "application/json"}
+        )
+        self.assertEqual(room_response.status_code, 201)
+        room_id = room_response.json()["id"]
+
+        # Calculate rate for 3 guests (exceeds capacity)
+        rate_calc_data = {
+            "room_id": room_id,
+            "check_in": self.test_booking_data["check_in"],
+            "check_out": self.test_booking_data["check_out"],
+            "number_of_guests": 3
+        }
+        response = self.session.post(
+            f"{BASE_URL}/bookings/calculate-rate",
+            json=rate_calc_data,
+            headers={"Content-Type": "application/json"}
+        )
+        self.assertEqual(response.status_code, 200)
+        rate_data = response.json()
+        
+        # Verify capacity warning fields
+        self.assertTrue(rate_data.get("capacity_exceeded"))
+        self.assertEqual(rate_data.get("max_capacity"), 2)
+
+        # Calculate rate for 2 guests (within capacity)
+        rate_calc_data["number_of_guests"] = 2
+        response = self.session.post(
+            f"{BASE_URL}/bookings/calculate-rate",
+            json=rate_calc_data,
+            headers={"Content-Type": "application/json"}
+        )
+        self.assertEqual(response.status_code, 200)
+        rate_data = response.json()
+        self.assertFalse(rate_data.get("capacity_exceeded"))
+
     def test_create_booking(self):
         """Test creating a booking"""
         # First create a guest and room with unique data
