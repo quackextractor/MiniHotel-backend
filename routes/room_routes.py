@@ -200,10 +200,19 @@ def create_seasonal_rate(current_user):
     """Create a new seasonal rate"""
     data = request.get_json()
 
+    try:
+        start_date = datetime.strptime(data['start_date'], '%Y-%m-%d').date()
+        end_date = datetime.strptime(data['end_date'], '%Y-%m-%d').date()
+    except (KeyError, ValueError) as exc:
+        return jsonify({'error': f'Invalid or missing date: {exc}'}), 400
+
+    if end_date <= start_date:
+        return jsonify({'error': 'End date must be after start date'}), 400
+
     rate = SeasonalRate(
         name=data['name'],
-        start_date=datetime.strptime(data['start_date'], '%Y-%m-%d').date(),
-        end_date=datetime.strptime(data['end_date'], '%Y-%m-%d').date(),
+        start_date=start_date,
+        end_date=end_date,
         rate_multiplier=data['rate_multiplier'],
         room_type=data.get('room_type'),
         room_group_id=data.get('room_group_id')
@@ -234,6 +243,10 @@ def update_seasonal_rate(current_user, rate_id):
         rate.room_type = data['room_type']
     if 'room_group_id' in data:
         rate.room_group_id = data['room_group_id']
+
+    if rate.end_date <= rate.start_date:
+        db.session.rollback()
+        return jsonify({'error': 'End date must be after start date'}), 400
 
     db.session.commit()
     return jsonify(seasonal_rate_schema.dump(rate))
